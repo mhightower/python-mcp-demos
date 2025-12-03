@@ -5,21 +5,49 @@ from datetime import date
 from enum import Enum
 from typing import Annotated
 
+import logfire
 from azure.cosmos.aio import CosmosClient
 from azure.identity.aio import DefaultAzureCredential, ManagedIdentityCredential
+from azure.monitor.opentelemetry import configure_azure_monitor
+from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
 from dotenv import load_dotenv
 from fastmcp import FastMCP
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-load_dotenv(override=True)
+RUNNING_IN_PRODUCTION = os.getenv("RUNNING_IN_PRODUCTION", "false").lower() == "true"
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
+if not RUNNING_IN_PRODUCTION:
+    load_dotenv(override=True)
+
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(message)s")
 logger = logging.getLogger("ExpensesMCP")
+logger.setLevel(logging.INFO)
+
+# Configure OpenTelemetry tracing
+APPLICATIONINSIGHTS_CONNECTION_STRING = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+if APPLICATIONINSIGHTS_CONNECTION_STRING:
+    logger.info("Setting up Azure Monitor instrumentation")
+    configure_azure_monitor()
+
+# Use Logfire to instrument MCP tool calls
+logfire.configure(
+    service_name="expenses-mcp",
+    send_to_logfire=False,  # Send spans to Application Insights, not Logfire backend
+)
+logfire.instrument_mcp()
+
+if APPLICATIONINSIGHTS_CONNECTION_STRING:
+    logger.info("Adding Azure Monitor Trace Exporter to TracerProvider")
+    tracer_provider = trace.get_tracer_provider()
+    exporter = AzureMonitorTraceExporter(connection_string=APPLICATIONINSIGHTS_CONNECTION_STRING)
+    span_processor = BatchSpanProcessor(exporter)
+    tracer_provider.add_span_processor(span_processor)
 
 # Cosmos DB configuration from environment variables
 AZURE_COSMOSDB_ACCOUNT = os.environ["AZURE_COSMOSDB_ACCOUNT"]
 AZURE_COSMOSDB_DATABASE = os.environ["AZURE_COSMOSDB_DATABASE"]
 AZURE_COSMOSDB_CONTAINER = os.environ["AZURE_COSMOSDB_CONTAINER"]
-RUNNING_IN_PRODUCTION = os.getenv("RUNNING_IN_PRODUCTION", "false").lower() == "true"
 AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID", "")
 
 # Configure Cosmos DB client and container
