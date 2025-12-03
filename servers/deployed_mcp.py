@@ -6,43 +6,31 @@ from enum import Enum
 from typing import Annotated
 
 import logfire
+from azure.core.settings import settings
 from azure.cosmos.aio import CosmosClient
 from azure.identity.aio import DefaultAzureCredential, ManagedIdentityCredential
 from azure.monitor.opentelemetry import configure_azure_monitor
-from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
 from dotenv import load_dotenv
 from fastmcp import FastMCP
-from opentelemetry import trace
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry_middleware import OpenTelemetryMiddleware
 
 RUNNING_IN_PRODUCTION = os.getenv("RUNNING_IN_PRODUCTION", "false").lower() == "true"
 
 if not RUNNING_IN_PRODUCTION:
     load_dotenv(override=True)
 
-logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(message)s")
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(message)s")
 logger = logging.getLogger("ExpensesMCP")
 logger.setLevel(logging.INFO)
 
 # Configure OpenTelemetry tracing
-APPLICATIONINSIGHTS_CONNECTION_STRING = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
-if APPLICATIONINSIGHTS_CONNECTION_STRING:
+if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
     logger.info("Setting up Azure Monitor instrumentation")
     configure_azure_monitor()
-
-# Use Logfire to instrument MCP tool calls
-logfire.configure(
-    service_name="expenses-mcp",
-    send_to_logfire=False,  # Send spans to Application Insights, not Logfire backend
-)
-logfire.instrument_mcp()
-
-if APPLICATIONINSIGHTS_CONNECTION_STRING:
-    logger.info("Adding Azure Monitor Trace Exporter to TracerProvider")
-    tracer_provider = trace.get_tracer_provider()
-    exporter = AzureMonitorTraceExporter(connection_string=APPLICATIONINSIGHTS_CONNECTION_STRING)
-    span_processor = BatchSpanProcessor(exporter)
-    tracer_provider.add_span_processor(span_processor)
+if os.getenv("LOGFIRE_PROJECT_NAME"):
+    logger.info("Setting up Logfire instrumentation")
+    settings.tracing_implementation = "opentelemetry"  # Send Azure Monitor traces via OpenTelemetry
+    logfire.configure(service_name="expenses-mcp", send_to_logfire=True)
 
 # Cosmos DB configuration from environment variables
 AZURE_COSMOSDB_ACCOUNT = os.environ["AZURE_COSMOSDB_ACCOUNT"]
@@ -65,6 +53,7 @@ cosmos_container = cosmos_db.get_container_client(AZURE_COSMOSDB_CONTAINER)
 logger.info(f"Connected to Cosmos DB: {AZURE_COSMOSDB_ACCOUNT}")
 
 mcp = FastMCP("Expenses Tracker")
+mcp.add_middleware(OpenTelemetryMiddleware("ExpensesMCP"))
 
 
 class PaymentMethod(Enum):

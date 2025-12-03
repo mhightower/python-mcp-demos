@@ -2325,6 +2325,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "agent-framework" },
     { name = "azure-ai-agents" },
+    { name = "azure-core-tracing-opentelemetry" },
     { name = "azure-cosmos" },
     { name = "azure-identity" },
     { name = "azure-monitor-opentelemetry" },
@@ -2348,6 +2349,7 @@ dev = [
 requires-dist = [
     { name = "agent-framework", specifier = ">=1.0.0b251016" },
     { name = "azure-ai-agents", specifier = ">=1.1.0" },
+    { name = "azure-core-tracing-opentelemetry", specifier = ">=1.0.0b12" },
     { name = "azure-cosmos", specifier = ">=4.9.0" },
     { name = "azure-identity", specifier = ">=1.25.1" },
     { name = "azure-monitor-opentelemetry", specifier = ">=1.6.4" },
