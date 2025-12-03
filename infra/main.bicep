@@ -163,7 +163,7 @@ module applicationInsights 'br/public:avm/res/insights/component:0.4.2' = if (us
     name: '${prefix}-appinsights'
     location: location
     tags: tags
-    workspaceResourceId: logAnalyticsWorkspace!.outputs.resourceId
+    workspaceResourceId: logAnalyticsWorkspace.?outputs.resourceId
     kind: 'web'
     applicationType: 'web'
   }

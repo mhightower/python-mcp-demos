@@ -19,7 +19,7 @@ RUNNING_IN_PRODUCTION = os.getenv("RUNNING_IN_PRODUCTION", "false").lower() == "
 if not RUNNING_IN_PRODUCTION:
     load_dotenv(override=True)
 
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(message)s")
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(message)s")
 logger = logging.getLogger("ExpensesMCP")
 logger.setLevel(logging.INFO)
 
@@ -27,7 +27,7 @@ logger.setLevel(logging.INFO)
 if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
     logger.info("Setting up Azure Monitor instrumentation")
     configure_azure_monitor()
-if os.getenv("LOGFIRE_PROJECT_NAME"):
+elif os.getenv("LOGFIRE_PROJECT_NAME"):
     logger.info("Setting up Logfire instrumentation")
     settings.tracing_implementation = "opentelemetry"  # Send Azure Monitor traces via OpenTelemetry
     logfire.configure(service_name="expenses-mcp", send_to_logfire=True)
