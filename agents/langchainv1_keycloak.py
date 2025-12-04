@@ -2,9 +2,10 @@
 LangChain agent that connects to Keycloak-protected MCP server.
 
 This script demonstrates:
-1. Getting an OAuth token from Keycloak via client_credentials grant
-2. Connecting to the MCP server with Bearer token authentication
-3. Using MCP tools through LangChain
+1. Dynamic Client Registration (DCR) with Keycloak
+2. Getting an OAuth token using the registered client
+3. Connecting to the MCP server with Bearer token authentication
+4. Using MCP tools through LangChain
 
 Usage:
     python agents/langchainv1_keycloak.py
@@ -42,10 +43,6 @@ KEYCLOAK_REALM_URL = os.getenv(
     "https://mcp-gps-key-n7pc5ej-kc.ashymeadow-ae27942e.eastus2.azurecontainerapps.io/realms/mcp"
 )
 
-# Test client credentials (from DCR)
-CLIENT_ID = os.getenv("TEST_CLIENT_ID", "4f061e11-d30c-4978-bb2e-2164ce26cc51")
-CLIENT_SECRET = os.getenv("TEST_CLIENT_SECRET", "UKZLK1eEga9FfZTFsqTHXK70ubq0PAJu")
-
 # Configure language model based on API_HOST
 API_HOST = os.getenv("API_HOST", "github")
 
@@ -74,19 +71,47 @@ else:
     base_model = ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
 
 
-async def get_keycloak_token() -> str:
+async def register_client_via_dcr() -> tuple[str, str]:
+    """Register a new client dynamically using Keycloak's DCR endpoint."""
+    dcr_url = f"{KEYCLOAK_REALM_URL}/clients-registrations/openid-connect"
+    
+    logger.info("📝 Registering client via DCR...")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            dcr_url,
+            json={
+                "client_name": f"langchain-agent-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                "grant_types": ["client_credentials"],
+                "token_endpoint_auth_method": "client_secret_basic",
+            },
+            headers={"Content-Type": "application/json"},
+        )
+        
+        if response.status_code not in (200, 201):
+            raise Exception(f"DCR failed: {response.status_code} - {response.text}")
+        
+        data = response.json()
+        client_id = data["client_id"]
+        client_secret = data["client_secret"]
+        
+        logger.info(f"✅ Registered client: {client_id[:20]}...")
+        return client_id, client_secret
+
+
+async def get_keycloak_token(client_id: str, client_secret: str) -> str:
     """Get an access token from Keycloak using client_credentials grant."""
     token_url = f"{KEYCLOAK_REALM_URL}/protocol/openid-connect/token"
     
-    logger.info(f"🔑 Getting access token from Keycloak...")
+    logger.info("🔑 Getting access token from Keycloak...")
     
     async with httpx.AsyncClient() as client:
         response = await client.post(
             token_url,
             data={
                 "grant_type": "client_credentials",
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
+                "client_id": client_id,
+                "client_secret": client_secret,
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
@@ -106,8 +131,9 @@ async def run_agent() -> None:
     """
     Run the agent to process expense-related queries using authenticated MCP tools.
     """
-    # First, get OAuth token from Keycloak
-    access_token = await get_keycloak_token()
+    # Register client via DCR and get token
+    client_id, client_secret = await register_client_via_dcr()
+    access_token = await get_keycloak_token(client_id, client_secret)
     
     logger.info(f"📡 Connecting to MCP server: {MCP_SERVER_URL}")
     
@@ -155,11 +181,11 @@ async def main():
     print("=" * 60)
     print("LangChain Agent with Keycloak-Protected MCP Server")
     print("=" * 60)
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  MCP Server:  {MCP_SERVER_URL}")
     print(f"  Keycloak:    {KEYCLOAK_REALM_URL}")
-    print(f"  Client ID:   {CLIENT_ID[:20]}...")
     print(f"  LLM Host:    {API_HOST}")
+    print("  Auth:        Dynamic Client Registration (DCR)")
     print()
     
     await run_agent()
