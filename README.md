@@ -284,19 +284,6 @@ When using VNet configuration, additional Azure resources are provisioned:
 
 This project supports deploying with OAuth 2.0 authentication using Keycloak as the identity provider, implementing the [MCP OAuth specification](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization) with Dynamic Client Registration (DCR).
 
-### Architecture
-
-```text
-┌─────────────┐     1. DCR + Token      ┌─────────────┐
-│  LangChain  │ ──────────────────────► │  Keycloak   │
-│   Agent     │ ◄────────────────────── │  (direct)   │
-│             │                         └─────────────┘
-│             │     2. MCP + Bearer
-│             │ ──────────────────────► ┌─────────────┐
-│             │ ◄────────────────────── │  mcproutes  │ → MCP Server
-└─────────────┘                         └─────────────┘
-```
-
 ### What gets deployed
 
 | Component | Description |
@@ -343,7 +330,7 @@ This project supports deploying with OAuth 2.0 authentication using Keycloak as 
 
    Login with `admin` and your configured password.
 
-### Testing with the LangChain agent
+### Testing with the agent
 
 1. Generate the local environment file:
 
@@ -356,33 +343,20 @@ This project supports deploying with OAuth 2.0 authentication using Keycloak as 
 2. Run the agent:
 
    ```bash
-   uv run agents/langchainv1_keycloak.py
+   uv run agents/agentframework_http.py
    ```
+
+   The agent automatically detects `KEYCLOAK_REALM_URL` in the environment and authenticates via DCR + client credentials.
 
    Expected output:
 
    ```text
-   ============================================================
-   LangChain Agent with Keycloak-Protected MCP Server
-   ============================================================
-
-   Configuration:
-     MCP Server:  https://mcproutes.<env>.azurecontainerapps.io/mcp
-     Keycloak:    https://mcp-<name>-kc.<env>.azurecontainerapps.io/realms/mcp
-     LLM Host:    azure
-     Auth:        Dynamic Client Registration (DCR)
-
-   [11:40:48] INFO     📝 Registering client via DCR...
-              INFO     ✅ Registered client: caef6f47-0243-474d-b...
-              INFO     🔑 Getting access token from Keycloak...
-              INFO     ✅ Got access token (expires in 300s)
-              INFO     📡 Connecting to MCP server...
-              INFO     🔧 Getting available tools...
-              INFO     ✅ Found 1 tools: ['add_expense']
-              INFO     💬 User query: Add an expense: yesterday I bought a laptop...
-              ...
-              INFO     📊 Agent Response:
-   The expense of $1200 for the laptop purchase has been successfully recorded.
+   INFO     🔐 Auth enabled - connecting to https://mcproutes.<env>.azurecontainerapps.io/mcp with Bearer token
+   INFO     📝 Registering client via DCR...
+   INFO     ✅ Registered client: agentframework-20251205-...
+   INFO     🔑 Getting access token from Keycloak...
+   INFO     ✅ Got access token (expires in 300s)
+   The expense of $1200.0 for 'laptop' on 2025-12-04 has been successfully added.
    ```
 
 ### Known limitations (demo trade-offs)
