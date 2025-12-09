@@ -24,9 +24,7 @@ def configure_aspire_dashboard(service_name: str = "expenses-mcp"):
     """
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     if not otlp_endpoint:
-        raise ValueError(
-            "OTEL_EXPORTER_OTLP_ENDPOINT environment variable must be set to configure telemetry export."
-        )
+        raise ValueError("OTEL_EXPORTER_OTLP_ENDPOINT environment variable must be set to configure telemetry export.")
 
     # Create resource with service name
     resource = Resource.create({"service.name": service_name})
